@@ -87,6 +87,7 @@ const localOffline = ref({
   title: '',
   msg: '',
   offlineDeleteSec: 120,
+  scope: 'all' as 'all' | 'account',
 })
 
 const passwordForm = ref({
@@ -166,7 +167,7 @@ function syncLocalSettings() {
       }
     }
 
-    // Sync offline settings (global)
+    // Sync offline settings（账户有专属配置则显示专属配置，否则显示全局配置）
     if (settings.value.offlineReminder) {
       localOffline.value = JSON.parse(JSON.stringify(settings.value.offlineReminder))
     }
@@ -381,9 +382,16 @@ async function handleChangePassword() {
 }
 
 async function handleSaveOffline() {
+  if (localOffline.value.scope === 'account' && !currentAccountId.value) {
+    showAlert('请先选择要配置的账号', 'danger')
+    return
+  }
   offlineSaving.value = true
   try {
-    const res = await settingStore.saveOfflineConfig(localOffline.value)
+    const res = await settingStore.saveOfflineConfig(
+      localOffline.value,
+      localOffline.value.scope === 'account' ? currentAccountId.value || undefined : undefined,
+    )
 
     if (res.ok) {
       showAlert('下线提醒设置已保存')
@@ -658,6 +666,42 @@ async function handleTestOffline() {
 
         <!-- Offline Content -->
         <div class="flex-1 p-4 space-y-3">
+          <!-- 生效范围 -->
+          <div class="flex items-center gap-3 border border-blue-200 rounded-lg bg-blue-50 px-3 py-2 dark:border-blue-800 dark:bg-blue-900/20">
+            <div class="i-carbon-user-multiple shrink-0 text-blue-500" />
+            <div class="flex flex-1 flex-wrap items-center gap-3">
+              <span class="text-sm text-gray-700 font-medium dark:text-gray-300">生效范围</span>
+              <div class="flex gap-3">
+                <label class="flex cursor-pointer items-center gap-1.5 text-sm">
+                  <input
+                    v-model="localOffline.scope"
+                    type="radio"
+                    value="all"
+                    class="accent-blue-500"
+                  >
+                  <span class="text-gray-700 dark:text-gray-300">所有账户</span>
+                </label>
+                <label class="flex cursor-pointer items-center gap-1.5 text-sm">
+                  <input
+                    v-model="localOffline.scope"
+                    type="radio"
+                    value="account"
+                    class="accent-blue-500"
+                    :disabled="!currentAccountId"
+                  >
+                  <span
+                    class="dark:text-gray-300"
+                    :class="currentAccountId ? 'text-gray-700' : 'text-gray-400 dark:text-gray-500'"
+                  >
+                    仅当前账户
+                    <span v-if="currentAccountName && localOffline.scope === 'account'" class="ml-1 text-blue-500">({{ currentAccountName }})</span>
+                    <span v-else-if="!currentAccountId" class="ml-1 text-xs text-gray-400">(需先选择账户)</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div class="flex flex-col gap-1.5">
               <div class="flex items-center justify-between">

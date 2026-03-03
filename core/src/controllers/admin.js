@@ -14,7 +14,7 @@ const { CONFIG } = require('../config/config');
 const { getLevelExpProgress } = require('../config/gameConfig');
 const { getResourcePath } = require('../config/runtime-paths');
 const store = require('../models/store');
-const { addOrUpdateAccount, deleteAccount } = store;
+const { addOrUpdateAccount, deleteAccount, getOfflineReminder, getOfflineReminderForAccount, setOfflineReminder } = store;
 const { findAccountByRef, normalizeAccountRef, resolveAccountId } = require('../services/account-resolver');
 const { createModuleLogger } = require('../services/logger');
 const { MiniProgramLoginSession } = require('../services/qrlogin');
@@ -483,7 +483,20 @@ function startAdminServer(dataProvider) {
     app.post('/api/settings/offline-reminder', async (req, res) => {
         try {
             const body = (req.body && typeof req.body === 'object') ? req.body : {};
-            const data = store.setOfflineReminder ? store.setOfflineReminder(body) : {};
+            const scope = String(body.scope || 'all').trim().toLowerCase();
+            let data;
+            if (scope === 'account') {
+                // 单个账户生效：从 header 或 body 中获取 accountId
+                const rawId = req.headers['x-account-id'] || body._accountId || '';
+                const accountId = String(rawId || '').trim();
+                if (!accountId) {
+                    return res.status(400).json({ ok: false, error: '单账户模式需要提供 x-account-id' });
+                }
+                data = store.setOfflineReminder ? store.setOfflineReminder(body, accountId) : {};
+            } else {
+                // 所有账户生效：保存全局配置
+                data = store.setOfflineReminder ? store.setOfflineReminder(body) : {};
+            }
             res.json({ ok: true, data: data || {} });
         } catch (e) {
             res.status(500).json({ ok: false, error: e.message });
@@ -540,10 +553,16 @@ function startAdminServer(dataProvider) {
             const friendQuietHours = store.getFriendQuietHours(id);
             const automation = store.getAutomation(id);
             const ui = store.getUI();
-            const offlineReminder = store.getOfflineReminder
+            // 优先返回账户级别的下线提醒配置，否则返回全局配置
+            const accountOfflineReminder = id && store.getOfflineReminderForAccount
+                ? store.getOfflineReminderForAccount(id)
+                : null;
+            const globalOfflineReminder = store.getOfflineReminder
                 ? store.getOfflineReminder()
-                : { channel: 'webhook', reloginUrlMode: 'none', endpoint: '', token: '', title: '账号下线提醒', msg: '账号下线', offlineDeleteSec: 120 };
-            res.json({ ok: true, data: { intervals, strategy, preferredSeed, friendQuietHours, automation, ui, offlineReminder } });
+                : { channel: 'webhook', reloginUrlMode: 'none', endpoint: '', token: '', title: '账号下线提醒', msg: '账号下线', offlineDeleteSec: 120, scope: 'all' };
+            // 如果账户有单独配置则返回（scope='account'），否则返回全局配置（scope='all'）
+            const offlineReminder = accountOfflineReminder || globalOfflineReminder;
+            res.json({ ok: true, data: { intervals, strategy, preferredSeed, friendQuietHours, automation, ui, offlineReminder, globalOfflineReminder } });
         } catch (e) {
             res.status(500).json({ ok: false, error: e.message });
         }
