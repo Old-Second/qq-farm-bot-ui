@@ -133,8 +133,27 @@ function createReloginReminderService(options) {
 
     async function triggerOfflineReminder(payload = {}) {
         try {
-            const cfg = store.getOfflineReminder ? store.getOfflineReminder() : null;
-            if (!cfg) return;
+            const triggerAccountId = String(payload.accountId || '').trim();
+
+            // 先查账户级别专属配置（scope='account' 的单账户配置）
+            let cfg = null;
+            if (triggerAccountId && store.getOfflineReminderForAccount) {
+                cfg = store.getOfflineReminderForAccount(triggerAccountId);
+                // 账户级配置 scope 必须是 'account' 才生效
+                if (cfg && String(cfg.scope || 'all').trim().toLowerCase() !== 'account') {
+                    cfg = null;
+                }
+            }
+
+            // 账户级配置不存在则使用全局配置
+            if (!cfg) {
+                const globalCfg = store.getOfflineReminder ? store.getOfflineReminder() : null;
+                if (!globalCfg) return;
+                const globalScope = String(globalCfg.scope || 'all').trim().toLowerCase();
+                // 全局配置 scope='all' 才对所有账户生效；scope='account' 的全局配置不触发
+                if (globalScope !== 'all') return;
+                cfg = globalCfg;
+            }
 
             const channelName = String(cfg.channel || '').trim().toLowerCase();
             const reloginUrlMode = String(cfg.reloginUrlMode || 'none').trim().toLowerCase();

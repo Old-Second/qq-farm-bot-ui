@@ -43,6 +43,7 @@ export interface OfflineConfig {
   title: string
   msg: string
   offlineDeleteSec: number
+  scope: 'all' | 'account' // 'all'=所有账户生效, 'account'=仅当前账户生效
 }
 
 export interface UIConfig {
@@ -57,9 +58,21 @@ export interface SettingsState {
   automation: AutomationConfig
   ui: UIConfig
   offlineReminder: OfflineConfig
+  globalOfflineReminder: OfflineConfig // 全局下线提醒配置（不受账户级覆盖）
 }
 
 export const useSettingStore = defineStore('setting', () => {
+  const defaultOfflineReminder: OfflineConfig = {
+    channel: 'webhook',
+    reloginUrlMode: 'none',
+    endpoint: '',
+    token: '',
+    title: '账号下线提醒',
+    msg: '账号下线',
+    offlineDeleteSec: 120,
+    scope: 'all' as 'all' | 'account',
+  }
+
   const settings = ref<SettingsState>({
     plantingStrategy: 'preferred',
     preferredSeedId: 0,
@@ -67,15 +80,8 @@ export const useSettingStore = defineStore('setting', () => {
     friendQuietHours: { enabled: false, start: '23:00', end: '07:00' },
     automation: {},
     ui: {},
-    offlineReminder: {
-      channel: 'webhook',
-      reloginUrlMode: 'none',
-      endpoint: '',
-      token: '',
-      title: '账号下线提醒',
-      msg: '账号下线',
-      offlineDeleteSec: 120,
-    },
+    offlineReminder: { ...defaultOfflineReminder },
+    globalOfflineReminder: { ...defaultOfflineReminder },
   })
   const loading = ref(false)
 
@@ -95,15 +101,8 @@ export const useSettingStore = defineStore('setting', () => {
         settings.value.friendQuietHours = d.friendQuietHours || { enabled: false, start: '23:00', end: '07:00' }
         settings.value.automation = d.automation || {}
         settings.value.ui = d.ui || {}
-        settings.value.offlineReminder = d.offlineReminder || {
-          channel: 'webhook',
-          reloginUrlMode: 'none',
-          endpoint: '',
-          token: '',
-          title: '账号下线提醒',
-          msg: '账号下线',
-          offlineDeleteSec: 120,
-        }
+        settings.value.offlineReminder = d.offlineReminder || { ...defaultOfflineReminder }
+        settings.value.globalOfflineReminder = d.globalOfflineReminder || d.offlineReminder || { ...defaultOfflineReminder }
       }
     }
     finally {
@@ -144,10 +143,14 @@ export const useSettingStore = defineStore('setting', () => {
     }
   }
 
-  async function saveOfflineConfig(config: OfflineConfig) {
+  async function saveOfflineConfig(config: OfflineConfig, accountId?: string) {
     loading.value = true
     try {
-      const { data } = await api.post('/api/settings/offline-reminder', config)
+      const headers: Record<string, string> = {}
+      if (config.scope === 'account' && accountId) {
+        headers['x-account-id'] = accountId
+      }
+      const { data } = await api.post('/api/settings/offline-reminder', config, { headers })
       if (data && data.ok) {
         settings.value.offlineReminder = config
         return { ok: true }

@@ -24,6 +24,7 @@ const DEFAULT_OFFLINE_REMINDER = {
     title: '账号下线提醒',
     msg: '账号下线',
     offlineDeleteSec: 120,
+    scope: 'all', // 'all' = 所有账户生效, 'account' = 仅指定账户生效
 };
 // ============ 全局配置 ============
 const DEFAULT_ACCOUNT_CONFIG = {
@@ -85,6 +86,7 @@ const globalConfig = {
         theme: 'dark',
     },
     offlineReminder: { ...DEFAULT_OFFLINE_REMINDER },
+    accountOfflineReminders: {}, // key: accountId, value: OfflineReminder
     adminPasswordHash: '',
 };
 
@@ -122,6 +124,10 @@ function normalizeOfflineReminder(input) {
     const msg = (src.msg !== undefined && src.msg !== null)
         ? String(src.msg).trim()
         : DEFAULT_OFFLINE_REMINDER.msg;
+    const rawScope = (src.scope !== undefined && src.scope !== null)
+        ? String(src.scope).trim().toLowerCase()
+        : DEFAULT_OFFLINE_REMINDER.scope;
+    const scope = new Set(['all', 'account']).has(rawScope) ? rawScope : DEFAULT_OFFLINE_REMINDER.scope;
     return {
         channel,
         reloginUrlMode,
@@ -130,6 +136,7 @@ function normalizeOfflineReminder(input) {
         title,
         msg,
         offlineDeleteSec,
+        scope,
     };
 }
 
@@ -287,6 +294,16 @@ function loadGlobalConfig() {
             const theme = String(globalConfig.ui.theme || '').toLowerCase();
             globalConfig.ui.theme = theme === 'light' ? 'light' : 'dark';
             globalConfig.offlineReminder = normalizeOfflineReminder(data.offlineReminder);
+            // 加载账户级别下线提醒配置
+            const accReminders = (data.accountOfflineReminders && typeof data.accountOfflineReminders === 'object')
+                ? data.accountOfflineReminders
+                : {};
+            globalConfig.accountOfflineReminders = {};
+            for (const [id, cfg] of Object.entries(accReminders)) {
+                const sid = String(id || '').trim();
+                if (!sid) continue;
+                globalConfig.accountOfflineReminders[sid] = normalizeOfflineReminder(cfg);
+            }
             if (typeof data.adminPasswordHash === 'string') {
                 globalConfig.adminPasswordHash = data.adminPasswordHash;
             }
@@ -312,6 +329,18 @@ function sanitizeGlobalConfigBeforeSave() {
         nextMap[sid] = normalizeAccountConfig(cfg, accountFallbackConfig);
     }
     globalConfig.accountConfigs = nextMap;
+
+    // 账户级下线提醒配置统一净化
+    const reminderMap = (globalConfig.accountOfflineReminders && typeof globalConfig.accountOfflineReminders === 'object')
+        ? globalConfig.accountOfflineReminders
+        : {};
+    const nextReminderMap = {};
+    for (const [id, cfg] of Object.entries(reminderMap)) {
+        const sid = String(id || '').trim();
+        if (!sid) continue;
+        nextReminderMap[sid] = normalizeOfflineReminder(cfg);
+    }
+    globalConfig.accountOfflineReminders = nextReminderMap;
 }
 
 // 保存全局配置
@@ -507,11 +536,36 @@ function setUITheme(theme) {
     return applyConfigSnapshot({ ui: { theme: next } });
 }
 
-function getOfflineReminder() {
+function getOfflineReminder(accountId) {
+    const id = accountId ? String(accountId).trim() : '';
+    if (id && globalConfig.accountOfflineReminders && globalConfig.accountOfflineReminders[id]) {
+        return normalizeOfflineReminder(globalConfig.accountOfflineReminders[id]);
+    }
     return normalizeOfflineReminder(globalConfig.offlineReminder);
 }
 
-function setOfflineReminder(cfg) {
+function getOfflineReminderForAccount(accountId) {
+    const id = accountId ? String(accountId).trim() : '';
+    if (!id) return null;
+    if (globalConfig.accountOfflineReminders && globalConfig.accountOfflineReminders[id]) {
+        return normalizeOfflineReminder(globalConfig.accountOfflineReminders[id]);
+    }
+    return null; // 未单独配置
+}
+
+function setOfflineReminder(cfg, accountId) {
+    const id = accountId ? String(accountId).trim() : '';
+    if (id) {
+        // 保存账户级别配置
+        const current = (globalConfig.accountOfflineReminders && globalConfig.accountOfflineReminders[id])
+            ? normalizeOfflineReminder(globalConfig.accountOfflineReminders[id])
+            : normalizeOfflineReminder(globalConfig.offlineReminder);
+        if (!globalConfig.accountOfflineReminders) globalConfig.accountOfflineReminders = {};
+        globalConfig.accountOfflineReminders[id] = normalizeOfflineReminder({ ...current, ...(cfg || {}) });
+        saveGlobalConfig();
+        return normalizeOfflineReminder(globalConfig.accountOfflineReminders[id]);
+    }
+    // 保存全局配置
     const current = normalizeOfflineReminder(globalConfig.offlineReminder);
     globalConfig.offlineReminder = normalizeOfflineReminder({ ...current, ...(cfg || {}) });
     saveGlobalConfig();
@@ -602,6 +656,7 @@ module.exports = {
     getUI,
     setUITheme,
     getOfflineReminder,
+    getOfflineReminderForAccount,
     setOfflineReminder,
     getAccounts,
     addOrUpdateAccount,
