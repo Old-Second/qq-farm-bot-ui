@@ -258,6 +258,14 @@ const reloginUrlModeOptions = [
   { label: '二维码+链接', value: 'all' },
 ]
 
+function setOfflineScope(scope: 'all' | 'account') {
+  if (scope === 'account' && !currentAccountId.value) {
+    showAlert('请先选择要配置的账号', 'danger')
+    return
+  }
+  localOffline.value.scope = scope
+}
+
 const currentChannelDocUrl = computed(() => {
   const key = String(localOffline.value.channel || '').trim().toLowerCase()
   return CHANNEL_DOCS[key] || ''
@@ -671,34 +679,35 @@ async function handleTestOffline() {
             <div class="i-carbon-user-multiple shrink-0 text-blue-500" />
             <div class="flex flex-1 flex-wrap items-center gap-3">
               <span class="text-sm text-gray-700 font-medium dark:text-gray-300">生效范围</span>
-              <div class="flex gap-3">
-                <label class="flex cursor-pointer items-center gap-1.5 text-sm">
-                  <input
-                    v-model="localOffline.scope"
-                    type="radio"
-                    value="all"
-                    class="accent-blue-500"
-                  >
-                  <span class="text-gray-700 dark:text-gray-300">所有账户</span>
-                </label>
-                <label class="flex cursor-pointer items-center gap-1.5 text-sm">
-                  <input
-                    v-model="localOffline.scope"
-                    type="radio"
-                    value="account"
-                    class="accent-blue-500"
-                    :disabled="!currentAccountId"
-                  >
-                  <span
-                    class="dark:text-gray-300"
-                    :class="currentAccountId ? 'text-gray-700' : 'text-gray-400 dark:text-gray-500'"
-                  >
-                    仅当前账户
-                    <span v-if="currentAccountName && localOffline.scope === 'account'" class="ml-1 text-blue-500">({{ currentAccountName }})</span>
-                    <span v-else-if="!currentAccountId" class="ml-1 text-xs text-gray-400">(需先选择账户)</span>
-                  </span>
-                </label>
+              <div class="flex items-center gap-2">
+                <BaseButton
+                  size="sm"
+                  :variant="localOffline.scope === 'all' ? 'primary' : 'secondary'"
+                  @click="setOfflineScope('all')"
+                >
+                  所有账户
+                </BaseButton>
+                <BaseButton
+                  size="sm"
+                  :variant="localOffline.scope === 'account' ? 'primary' : 'secondary'"
+                  :disabled="!currentAccountId"
+                  @click="setOfflineScope('account')"
+                >
+                  仅当前账户
+                </BaseButton>
               </div>
+              <span
+                v-if="currentAccountName && localOffline.scope === 'account'"
+                class="text-sm text-blue-500"
+              >
+                当前账号：{{ currentAccountName }}
+              </span>
+              <span v-else-if="!currentAccountId" class="text-xs text-gray-400">
+                仅当前账户需先选择账号
+              </span>
+              <span v-else class="text-xs text-gray-500 dark:text-gray-400">
+                所有账户共享一套提醒配置
+              </span>
             </div>
           </div>
 
