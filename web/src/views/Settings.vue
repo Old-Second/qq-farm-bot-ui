@@ -258,10 +258,13 @@ const reloginUrlModeOptions = [
   { label: '二维码+链接', value: 'all' },
 ]
 
-const offlineScopeOptions = computed(() => [
-  { label: '所有账户', value: 'all' },
-  { label: '仅当前账户', value: 'account', disabled: !currentAccountId.value },
-])
+function setOfflineScope(scope: 'all' | 'account') {
+  if (scope === 'account' && !currentAccountId.value) {
+    showAlert('请先选择要配置的账号', 'danger')
+    return
+  }
+  localOffline.value.scope = scope
+}
 
 const currentChannelDocUrl = computed(() => {
   const key = String(localOffline.value.channel || '').trim().toLowerCase()
@@ -675,12 +678,24 @@ async function handleTestOffline() {
           <div class="flex items-center gap-3 border border-blue-200 rounded-lg bg-blue-50 px-3 py-2 dark:border-blue-800 dark:bg-blue-900/20">
             <div class="i-carbon-user-multiple shrink-0 text-blue-500" />
             <div class="flex flex-1 flex-wrap items-center gap-3">
-              <BaseSelect
-                v-model="localOffline.scope"
-                label="生效范围"
-                class="min-w-48"
-                :options="offlineScopeOptions"
-              />
+              <span class="text-sm text-gray-700 font-medium dark:text-gray-300">生效范围</span>
+              <div class="flex items-center gap-2">
+                <BaseButton
+                  size="sm"
+                  :variant="localOffline.scope === 'all' ? 'primary' : 'secondary'"
+                  @click="setOfflineScope('all')"
+                >
+                  所有账户
+                </BaseButton>
+                <BaseButton
+                  size="sm"
+                  :variant="localOffline.scope === 'account' ? 'primary' : 'secondary'"
+                  :disabled="!currentAccountId"
+                  @click="setOfflineScope('account')"
+                >
+                  仅当前账户
+                </BaseButton>
+              </div>
               <span
                 v-if="currentAccountName && localOffline.scope === 'account'"
                 class="text-sm text-blue-500"
