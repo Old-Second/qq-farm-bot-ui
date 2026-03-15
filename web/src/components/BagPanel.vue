@@ -9,28 +9,37 @@ import { useStatusStore } from '@/stores/status'
 const accountStore = useAccountStore()
 const bagStore = useBagStore()
 const statusStore = useStatusStore()
+
 const { currentAccountId, currentAccount } = storeToRefs(accountStore)
 const { items, loading: bagLoading } = storeToRefs(bagStore)
 const { status, loading: statusLoading, error: statusError, realtimeConnected } = storeToRefs(statusStore)
 
 const imageErrors = ref<Record<string | number, boolean>>({})
 
+function getPriceClass(item: any) {
+  const priceId = Number(item?.priceId || 0)
+  if (priceId === 1005)
+    return 'text-amber-400 dark:text-amber-300'
+  if (priceId === 1002)
+    return 'text-sky-400 dark:text-sky-300'
+  return 'text-gray-400'
+}
+
 async function loadBag() {
-  if (currentAccountId.value) {
-    const acc = currentAccount.value
-    if (!acc)
-      return
+  if (!currentAccountId.value)
+    return
 
-    if (!realtimeConnected.value) {
-      await statusStore.fetchStatus(currentAccountId.value)
-    }
+  const acc = currentAccount.value
+  if (!acc)
+    return
 
-    if (acc.running && status.value?.connection?.connected) {
-      bagStore.fetchBag(currentAccountId.value)
-    }
-    // 重置图片错误状态
-    imageErrors.value = {}
-  }
+  if (!realtimeConnected.value)
+    await statusStore.fetchStatus(currentAccountId.value)
+
+  if (acc.running && status.value?.connection?.connected)
+    await bagStore.fetchBag(currentAccountId.value)
+
+  imageErrors.value = {}
 }
 
 onMounted(() => {
@@ -125,7 +134,7 @@ useIntervalFn(loadBag, 60000)
           <span>
             类型: {{ item.itemType || 0 }}
             <span v-if="item.level > 0"> · Lv{{ item.level }}</span>
-            <span v-if="item.price > 0"> · {{ item.price }}金</span>
+            <span v-if="item.price > 0" :class="getPriceClass(item)"> · {{ item.price }}{{ item.priceUnit || '金' }}</span>
           </span>
         </div>
 
@@ -141,6 +150,7 @@ useIntervalFn(loadBag, 60000)
 .thumb-wrap.fallback img {
   display: none;
 }
+
 .thumb-wrap.fallback::after {
   content: attr(data-fallback);
   font-size: 1.5rem;

@@ -106,12 +106,20 @@ const typeMappings = [
     // 好友
     ['GetAllFriendsRequest', 'gamepb.friendpb.GetAllRequest'],
     ['GetAllFriendsReply', 'gamepb.friendpb.GetAllReply'],
+    ['SyncAllRequest', 'gamepb.friendpb.SyncAllRequest'],
+    ['SyncAllReply', 'gamepb.friendpb.SyncAllReply'],
+    ['SyncAllFriendsRequest', 'gamepb.friendpb.SyncAllRequest'],
+    ['SyncAllFriendsReply', 'gamepb.friendpb.SyncAllReply'],
+    ['GetGameFriendsRequest', 'gamepb.friendpb.GetGameFriendsRequest'],
+    ['GetGameFriendsReply', 'gamepb.friendpb.GetGameFriendsReply'],
     ['GetApplicationsRequest', 'gamepb.friendpb.GetApplicationsRequest'],
     ['GetApplicationsReply', 'gamepb.friendpb.GetApplicationsReply'],
     ['AcceptFriendsRequest', 'gamepb.friendpb.AcceptFriendsRequest'],
     ['AcceptFriendsReply', 'gamepb.friendpb.AcceptFriendsReply'],
     ['FriendApplicationReceivedNotify', 'gamepb.friendpb.FriendApplicationReceivedNotify'],
     ['FriendAddedNotify', 'gamepb.friendpb.FriendAddedNotify'],
+    ['InteractRecordsRequest', 'gamepb.interactpb.InteractRecordsRequest'],
+    ['InteractRecordsReply', 'gamepb.interactpb.InteractRecordsReply'],
     // 访问
     ['VisitEnterRequest', 'gamepb.visitpb.EnterRequest'],
     ['VisitEnterReply', 'gamepb.visitpb.EnterReply'],
@@ -139,6 +147,7 @@ const typeMappings = [
 ];
 
 async function loadProto() {
+    if (root) return root;
     log('系统', '正在加载 Protobuf 定义...');
     root = new protobuf.Root();
 
@@ -154,6 +163,7 @@ async function loadProto() {
 
     // Proto 加载完成
     log('系统', 'Protobuf 定义加载完成');
+    return root;
 }
 
 function getRoot() {
